@@ -1,5 +1,7 @@
 use anyhow::Result;
 use mcp_common::{IpcMessage, LogEntry, LogLevel, ProxyId, ProxyStats};
+use mcp_core::interceptor::{InterceptorManager, MessageDirection};
+use mcp_core::messages::JsonRpcMessage;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::process::Child;
@@ -14,6 +16,7 @@ pub struct StdioHandler {
     stats: Arc<Mutex<ProxyStats>>,
     ipc_client: Option<Arc<BufferedIpcClient>>,
     stats_interval: tokio::time::Interval,
+    interceptor_manager: Arc<InterceptorManager>,
 }
 
 impl StdioHandler {
@@ -22,6 +25,21 @@ impl StdioHandler {
         stats: Arc<Mutex<ProxyStats>>,
         ipc_client: Option<Arc<BufferedIpcClient>>,
     ) -> Result<Self> {
+        Self::with_interceptors(
+            proxy_id,
+            stats,
+            ipc_client,
+            Arc::new(InterceptorManager::new()),
+        )
+        .await
+    }
+
+    pub async fn with_interceptors(
+        proxy_id: ProxyId,
+        stats: Arc<Mutex<ProxyStats>>,
+        ipc_client: Option<Arc<BufferedIpcClient>>,
+        interceptor_manager: Arc<InterceptorManager>,
+    ) -> Result<Self> {
         let stats_interval = interval(Duration::from_secs(1));
 
         Ok(Self {
@@ -29,7 +47,13 @@ impl StdioHandler {
             stats,
             ipc_client,
             stats_interval,
+            interceptor_manager,
         })
+    }
+
+    /// Get the interceptor manager for this handler
+    pub fn interceptor_manager(&self) -> &Arc<InterceptorManager> {
+        &self.interceptor_manager
     }
 
     pub async fn handle_communication(
@@ -86,9 +110,24 @@ impl StdioHandler {
                     match result {
                         Ok((0, _)) => break, // EOF
                         Ok((_, input)) => {
-                            self.log_request(&input).await;
+                            // Process through interceptors
+                            let (processed_input, modified) = match self.process_outgoing(&input).await {
+                                Ok(result) => result,
+                                Err(e) => {
+                                    warn!("Message blocked or failed processing: {}", e);
+                                    // Log the blocked message
+                                    self.log_request(&input, false).await;
+                                    {
+                                        let mut stats = self.stats.lock().await;
+                                        stats.failed_requests += 1;
+                                    }
+                                    continue; // Skip sending to child
+                                }
+                            };
 
-                            if let Err(e) = child_stdin.write_all(input.as_bytes()).await {
+                            self.log_request(&processed_input, modified).await;
+
+                            if let Err(e) = child_stdin.write_all(processed_input.as_bytes()).await {
                                 error!("Failed to write to child stdin: {}", e);
                                 break;
                             }
@@ -101,7 +140,7 @@ impl StdioHandler {
                             {
                                 let mut stats = self.stats.lock().await;
                                 stats.total_requests += 1;
-                                stats.bytes_transferred += input.len() as u64;
+                                stats.bytes_transferred += processed_input.len() as u64;
                             }
                         }
                         Err(e) => {
@@ -123,9 +162,24 @@ impl StdioHandler {
                             break;
                         }
                         Ok((_, output)) => {
-                            self.log_response(&output).await;
+                            // Process through interceptors
+                            let (processed_output, modified) = match self.process_incoming(&output).await {
+                                Ok(result) => result,
+                                Err(e) => {
+                                    warn!("Message blocked or failed processing: {}", e);
+                                    // Log the blocked message
+                                    self.log_response(&output, false).await;
+                                    {
+                                        let mut stats = self.stats.lock().await;
+                                        stats.failed_requests += 1;
+                                    }
+                                    continue; // Skip sending to user
+                                }
+                            };
 
-                            if let Err(e) = user_stdout.write_all(output.as_bytes()).await {
+                            self.log_response(&processed_output, modified).await;
+
+                            if let Err(e) = user_stdout.write_all(processed_output.as_bytes()).await {
                                 error!("Failed to write to user stdout: {}", e);
                                 break;
                             }
@@ -138,7 +192,7 @@ impl StdioHandler {
                             {
                                 let mut stats = self.stats.lock().await;
                                 stats.successful_requests += 1;
-                                stats.bytes_transferred += output.len() as u64;
+                                stats.bytes_transferred += processed_output.len() as u64;
                             }
                         }
                         Err(e) => {
@@ -198,26 +252,85 @@ impl StdioHandler {
         Ok(())
     }
 
-    async fn log_request(&mut self, content: &str) {
-        let log_entry = LogEntry::new(
-            LogLevel::Request,
-            format!("→ {}", content.trim()),
-            self.proxy_id.clone(),
-        );
+    /// Process an outgoing message (client -> server) through interceptors
+    async fn process_outgoing(&self, content: &str) -> Result<(String, bool)> {
+        // Try to parse as JSON-RPC message
+        match serde_json::from_str::<JsonRpcMessage>(content.trim()) {
+            Ok(message) => {
+                // Process through interceptors
+                match self
+                    .interceptor_manager
+                    .process_message(message, MessageDirection::Outgoing)
+                    .await
+                {
+                    Ok(result) => {
+                        if result.block {
+                            warn!("Message blocked by interceptor: {:?}", result.reasoning);
+                            return Err(anyhow::anyhow!(
+                                "Message blocked: {}",
+                                result.reasoning.unwrap_or_default()
+                            ));
+                        }
 
-        if let Some(ref client) = self.ipc_client {
-            if let Err(e) = client.send(IpcMessage::LogEntry(log_entry)).await {
-                warn!("Failed to send log entry: {}", e);
+                        let modified_content = serde_json::to_string(&result.message)?;
+                        Ok((modified_content + "\n", result.modified))
+                    }
+                    Err(e) => {
+                        warn!("Interceptor processing failed: {}", e);
+                        // Fall back to original message
+                        Ok((content.to_string(), false))
+                    }
+                }
+            }
+            Err(_) => {
+                // Not valid JSON-RPC, pass through unchanged
+                Ok((content.to_string(), false))
             }
         }
-
-        debug!("Request: {}", content.trim());
     }
 
-    async fn log_response(&mut self, content: &str) {
+    /// Process an incoming message (server -> client) through interceptors
+    async fn process_incoming(&self, content: &str) -> Result<(String, bool)> {
+        // Try to parse as JSON-RPC message
+        match serde_json::from_str::<JsonRpcMessage>(content.trim()) {
+            Ok(message) => {
+                // Process through interceptors
+                match self
+                    .interceptor_manager
+                    .process_message(message, MessageDirection::Incoming)
+                    .await
+                {
+                    Ok(result) => {
+                        if result.block {
+                            warn!("Message blocked by interceptor: {:?}", result.reasoning);
+                            return Err(anyhow::anyhow!(
+                                "Message blocked: {}",
+                                result.reasoning.unwrap_or_default()
+                            ));
+                        }
+
+                        let modified_content = serde_json::to_string(&result.message)?;
+                        Ok((modified_content + "\n", result.modified))
+                    }
+                    Err(e) => {
+                        warn!("Interceptor processing failed: {}", e);
+                        // Fall back to original message
+                        Ok((content.to_string(), false))
+                    }
+                }
+            }
+            Err(_) => {
+                // Not valid JSON-RPC, pass through unchanged
+                Ok((content.to_string(), false))
+            }
+        }
+    }
+
+    async fn log_request(&mut self, content: &str, modified: bool) {
+        let prefix = if modified { "→ [MODIFIED]" } else { "→" };
         let log_entry = LogEntry::new(
-            LogLevel::Response,
-            format!("← {}", content.trim()),
+            LogLevel::Request,
+            format!("{} {}", prefix, content.trim()),
             self.proxy_id.clone(),
         );
 
@@ -227,7 +340,24 @@ impl StdioHandler {
             }
         }
 
-        debug!("Response: {}", content.trim());
+        debug!("Request{}: {}", if modified { " (modified)" } else { "" }, content.trim());
+    }
+
+    async fn log_response(&mut self, content: &str, modified: bool) {
+        let prefix = if modified { "← [MODIFIED]" } else { "←" };
+        let log_entry = LogEntry::new(
+            LogLevel::Response,
+            format!("{} {}", prefix, content.trim()),
+            self.proxy_id.clone(),
+        );
+
+        if let Some(ref client) = self.ipc_client {
+            if let Err(e) = client.send(IpcMessage::LogEntry(log_entry)).await {
+                warn!("Failed to send log entry: {}", e);
+            }
+        }
+
+        debug!("Response{}: {}", if modified { " (modified)" } else { "" }, content.trim());
     }
 
     async fn log_error(&mut self, content: &str) {

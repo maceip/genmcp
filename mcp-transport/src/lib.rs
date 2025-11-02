@@ -7,6 +7,7 @@ mod proxy;
 mod stdio_handler;
 mod http_handler;
 mod transport_config;
+pub mod interceptors;
 
 use proxy::MCPProxy;
 

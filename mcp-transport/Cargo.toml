@@ -23,6 +23,7 @@ clap = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 rand = "0.8"
+async-trait = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

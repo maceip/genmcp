@@ -1,5 +1,5 @@
 use mcp_common::*;
-use mcp_ui::{App, AppEvent};
+use mcp_ui::{App, AppEvent, TabType};
 use mcp_transport::BufferedIpcClient;
 use tempfile::tempdir;
 use tokio::time::{sleep, Duration};
