@@ -24,11 +24,11 @@ An advanced Model Context Protocol (MCP) proxy that combines transparent monitor
 # Build all components
 cargo build --release
 
-# Terminal 1: Start monitor
-./target/release/mcp-trace monitor
+# Terminal 1: Start UI monitor
+./target/release/mcp-cli monitor
 
-# Terminal 2: Start proxy with stdio server
-./target/release/mcp-trace proxy \
+# Terminal 2: Start transport proxy with stdio server
+./target/release/mcp-cli proxy \
   --name "My Server" \
   --command "python server.py"
 ```
@@ -36,18 +36,18 @@ cargo build --release
 ## Architecture
 
 ```
-Client → [mcp-proxy] → MCP Server
-             ↓ (IPC)
-        [mcp-monitor TUI]
+Client → [mcp-transport] → MCP Server
+              ↓ (IPC)
+          [mcp-ui TUI]
 ```
 
-**Proxy Features:**
+**Transport Features:**
 - Intercepts STDIO communication
 - Multiple transport types (stdio, HTTP+SSE, HTTP streaming)
-- Sends logs to monitor via Unix socket IPC
+- Sends logs to UI via Unix socket IPC
 - Resilient buffered IPC (works offline)
 
-**Monitor Features:**
+**UI Features:**
 - Real-time log streaming
 - Multi-proxy support
 - Tab-based filtering (All, Messages, Errors, System)
@@ -58,9 +58,9 @@ Client → [mcp-proxy] → MCP Server
 
 - `mcp-core/` - MCP protocol types and transports (from mcp-probe)
 - `mcp-common/` - IPC communication and shared types (from mcp-trace)
-- `mcp-proxy/` - STDIO proxy implementation (from mcp-trace)
-- `mcp-monitor/` - TUI monitoring application (from mcp-trace)
-- `mcp-trace/` - Unified CLI binary
+- `mcp-transport/` - Transport layer proxy (from mcp-trace)
+- `mcp-ui/` - TUI monitoring application (from mcp-trace)
+- `mcp-cli/` - Unified CLI binary
 - `tests/` - End-to-end integration tests
 
 ## Development
@@ -72,8 +72,8 @@ cargo test --workspace
 # Run specific crate tests
 cargo test -p mcp-core
 cargo test -p mcp-common
-cargo test -p mcp-proxy
-cargo test -p mcp-monitor
+cargo test -p mcp-transport
+cargo test -p mcp-ui
 
 # Run E2E tests
 cargo test --test e2e_tests
@@ -87,8 +87,8 @@ cargo check --workspace
 **183 tests across:**
 - Protocol implementation (mcp-core)
 - IPC communication (mcp-common)
-- Proxy logic (mcp-proxy)
-- TUI application (mcp-monitor)
+- Transport layer (mcp-transport)
+- TUI application (mcp-ui)
 - End-to-end scenarios (tests/)
 
 ## Roadmap
