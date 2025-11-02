@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use mcp_transport::{run_proxy_app, ProxyArgs};
+use mcp_transport::{run_proxy_app, ProxyArgs, TransportConfig};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
@@ -47,12 +47,17 @@ async fn main() -> Result<()> {
         format!("mcp-proxy-{}", random_suffix)
     });
 
-    let proxy_args = ProxyArgs {
+    // Create transport config from command (this binary only supports stdio)
+    let transport_config = TransportConfig::Stdio {
         command: args.command,
+        use_shell: args.shell,
+    };
+
+    let proxy_args = ProxyArgs {
+        transport_config,
         name,
         ipc_socket: args.ipc_socket,
         verbose: args.verbose,
-        shell: args.shell,
         no_monitor: args.no_monitor,
     };
 

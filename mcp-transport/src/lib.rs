@@ -5,19 +5,20 @@ use tracing::info;
 mod buffered_ipc_client;
 mod proxy;
 mod stdio_handler;
+mod transport_config;
 
 use proxy::MCPProxy;
 
 // Export modules for testing
 pub use buffered_ipc_client::BufferedIpcClient;
 pub use stdio_handler::StdioHandler;
+pub use transport_config::TransportConfig;
 
 pub struct ProxyArgs {
-    pub command: String,
+    pub transport_config: TransportConfig,
     pub name: String,
     pub ipc_socket: String,
     pub verbose: bool,
-    pub shell: bool,
     pub no_monitor: bool,
 }
 
@@ -25,25 +26,19 @@ pub async fn run_proxy_app(args: ProxyArgs) -> Result<()> {
     // Initialize tracing
     let log_level = if args.verbose { "debug" } else { "info" };
     tracing_subscriber::fmt()
-        .with_env_filter(format!("mcp_proxy={},mcp_common={}", log_level, log_level))
+        .with_env_filter(format!("mcp_transport={},mcp_common={}", log_level, log_level))
         .init();
 
-    info!("Starting MCP Proxy: {}", args.name);
-    info!("Target command: {}", args.command);
-
-    if args.command.is_empty() {
-        return Err(anyhow::anyhow!(
-            "No command specified. Use --command to specify the MCP server command."
-        ));
-    }
+    info!("Starting MCP Transport: {}", args.name);
+    info!("Transport type: {:?}", args.transport_config.transport_type());
+    info!("Target: {}", args.transport_config.display_target());
 
     // Create proxy instance
     let proxy_id = ProxyId::new();
     let mut proxy = MCPProxy::new(
         proxy_id.clone(),
         args.name.clone(),
-        args.command.clone(),
-        args.shell,
+        args.transport_config.clone(),
     )
     .await?;
 

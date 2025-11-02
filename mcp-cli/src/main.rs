@@ -24,23 +24,35 @@ pub enum Commands {
     },
     /// Start an MCP proxy server
     Proxy {
-        /// MCP server command to proxy (as a single string, will be executed via shell)
+        /// Transport type (stdio, http-sse, http-stream)
+        #[arg(short, long, default_value = "stdio")]
+        transport: String,
+
+        /// MCP server command (for stdio transport)
         #[arg(short, long)]
-        command: String,
+        command: Option<String>,
+
+        /// HTTP URL (for http-sse or http-stream transport)
+        #[arg(short, long)]
+        url: Option<String>,
+
+        /// API key for HTTP transports
+        #[arg(long)]
+        api_key: Option<String>,
 
         /// Name for this proxy instance
-        #[arg(short, long, default_value = "mcp-proxy")]
+        #[arg(short, long, default_value = "mcp-transport")]
         name: String,
 
         /// IPC socket path for monitor communication
-        #[arg(short, long, default_value = "/tmp/mcp-monitor.sock")]
+        #[arg(short = 'i', long, default_value = "/tmp/mcp-monitor.sock")]
         ipc_socket: String,
 
         /// Verbose logging
         #[arg(short, long)]
         verbose: bool,
 
-        /// Use shell to execute command (enabled by default)
+        /// Use shell to execute command (enabled by default for stdio)
         #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         shell: bool,
 
@@ -60,13 +72,16 @@ async fn main() -> Result<()> {
             verbose,
         }) => run_monitor(ipc_socket, verbose).await,
         Some(Commands::Proxy {
+            transport,
             command,
+            url,
+            api_key,
             name,
             ipc_socket,
             verbose,
             shell,
             no_monitor,
-        }) => run_proxy(command, name, ipc_socket, verbose, shell, no_monitor).await,
+        }) => run_proxy(transport, command, url, api_key, name, ipc_socket, verbose, shell, no_monitor).await,
         None => {
             // Default to monitor
             run_monitor("/tmp/mcp-monitor.sock".to_string(), false).await
@@ -87,7 +102,10 @@ async fn run_monitor(ipc_socket: String, verbose: bool) -> Result<()> {
 }
 
 async fn run_proxy(
-    command: String,
+    transport: String,
+    command: Option<String>,
+    url: Option<String>,
+    api_key: Option<String>,
     name: String,
     ipc_socket: String,
     verbose: bool,
@@ -95,14 +113,22 @@ async fn run_proxy(
     no_monitor: bool,
 ) -> Result<()> {
     // Import the proxy functionality
-    use mcp_transport::{run_proxy_app, ProxyArgs};
+    use mcp_transport::{run_proxy_app, ProxyArgs, TransportConfig};
+
+    // Build transport config from CLI args
+    let transport_config = TransportConfig::from_cli_args(
+        &transport,
+        command,
+        url,
+        shell,
+        api_key,
+    )?;
 
     let args = ProxyArgs {
-        command,
+        transport_config,
         name,
         ipc_socket,
         verbose,
-        shell,
         no_monitor,
     };
 

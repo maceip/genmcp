@@ -95,6 +95,7 @@ pub struct ProxyInfo {
     pub target_command: Vec<String>,
     pub status: ProxyStatus,
     pub stats: ProxyStats,
+    pub transport_type: TransportType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +104,13 @@ pub enum ProxyStatus {
     Running,
     Stopped,
     Error(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TransportType {
+    Stdio,
+    HttpSse,
+    HttpStream,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

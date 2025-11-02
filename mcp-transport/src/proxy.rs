@@ -8,26 +8,25 @@ use tracing::{info, warn};
 
 use crate::buffered_ipc_client::BufferedIpcClient;
 use crate::stdio_handler::StdioHandler;
+use crate::transport_config::TransportConfig;
 
 pub struct MCPProxy {
     id: ProxyId,
     name: String,
-    command: String,
-    use_shell: bool,
+    transport_config: TransportConfig,
     stats: Arc<Mutex<ProxyStats>>,
     shutdown_tx: Option<broadcast::Sender<()>>,
 }
 
 impl MCPProxy {
-    pub async fn new(id: ProxyId, name: String, command: String, use_shell: bool) -> Result<Self> {
+    pub async fn new(id: ProxyId, name: String, transport_config: TransportConfig) -> Result<Self> {
         let mut stats = ProxyStats::default();
         stats.proxy_id = id.clone();
 
         Ok(Self {
             id,
             name,
-            command,
-            use_shell,
+            transport_config,
             stats: Arc::new(Mutex::new(stats)),
             shutdown_tx: None,
         })
@@ -59,10 +58,11 @@ impl MCPProxy {
             let proxy_info = ProxyInfo {
                 id: self.id.clone(),
                 name: self.name.clone(),
-                listen_address: "stdio".to_string(),
-                target_command: vec![self.command.clone()],
+                listen_address: "proxy".to_string(),
+                target_command: vec![self.transport_config.display_target()],
                 status: ProxyStatus::Starting,
                 stats: self.stats.lock().await.clone(),
+                transport_type: self.transport_config.transport_type(),
             };
 
             if let Err(e) = client.send(IpcMessage::ProxyStarted(proxy_info)).await {
@@ -70,55 +70,67 @@ impl MCPProxy {
             }
         }
 
-        // Start MCP server process
-        let mut child = self.start_mcp_server().await?;
+        // Handle transport-specific logic
+        match &self.transport_config {
+            TransportConfig::Stdio { .. } => {
+                // Start MCP server process
+                let mut child = self.start_mcp_server().await?;
 
-        // Create STDIO handler
-        let mut handler =
-            StdioHandler::new(self.id.clone(), self.stats.clone(), buffered_client.clone()).await?;
+                // Create STDIO handler
+                let mut handler =
+                    StdioHandler::new(self.id.clone(), self.stats.clone(), buffered_client.clone()).await?;
 
-        // Note: ProxyStats doesn't have a status field, but we track it in ProxyInfo
+                // Handle STDIO communication
+                let result = handler.handle_communication(&mut child, shutdown_rx).await;
 
-        // Handle STDIO communication
-        let result = handler.handle_communication(&mut child, shutdown_rx).await;
+                // Clean up
+                info!("Proxy {} shutting down", self.name);
+                if let Err(e) = child.kill().await {
+                    warn!("Failed to kill MCP server process: {}", e);
+                }
 
-        // Clean up
-        info!("Proxy {} shutting down", self.name);
-        if let Err(e) = child.kill().await {
-            warn!("Failed to kill MCP server process: {}", e);
-        }
+                // Send proxy stopped message and shutdown buffered client
+                if let Some(client) = buffered_client {
+                    if let Err(e) = client.send(IpcMessage::ProxyStopped(self.id.clone())).await {
+                        warn!("Failed to send proxy stopped message: {}", e);
+                    }
+                    // Take the client out of the Arc and shutdown
+                    if let Ok(client) = Arc::try_unwrap(client) {
+                        client.shutdown().await;
+                    }
+                }
 
-        // Send proxy stopped message and shutdown buffered client
-        if let Some(client) = buffered_client {
-            if let Err(e) = client.send(IpcMessage::ProxyStopped(self.id.clone())).await {
-                warn!("Failed to send proxy stopped message: {}", e);
+                result
             }
-            // Take the client out of the Arc and shutdown
-            if let Ok(client) = Arc::try_unwrap(client) {
-                client.shutdown().await;
+            TransportConfig::HttpSse { .. } | TransportConfig::HttpStream { .. } => {
+                // TODO: Implement HTTP transport handling in next iteration
+                Err(anyhow::anyhow!("HTTP transports not yet implemented. Coming in Stage 1.5!"))
             }
         }
-
-        result
     }
 
     async fn start_mcp_server(&self) -> Result<Child> {
-        if self.command.is_empty() {
+        let (command, use_shell) = match &self.transport_config {
+            TransportConfig::Stdio { command, use_shell } => (command, use_shell),
+            _ => return Err(anyhow::anyhow!("start_mcp_server only works for stdio transport")),
+        };
+
+        if command.is_empty() {
             return Err(anyhow::anyhow!("No command specified"));
         }
 
-        let child = if self.use_shell {
+        let child = if *use_shell {
             // Use shell to execute the command
             Command::new("sh")
                 .arg("-c")
-                .arg(&self.command)
+                .arg(command)
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()?
         } else {
             // Parse command and arguments
-            let parts: Vec<&str> = self.command.split_whitespace().collect();
+            let parts: Vec<&str> = command.split_whitespace().collect();
             if parts.is_empty() {
                 return Err(anyhow::anyhow!("Empty command"));
             }
@@ -134,7 +146,7 @@ impl MCPProxy {
                 .spawn()?
         };
 
-        info!("Started MCP server process: {}", self.command);
+        info!("Started MCP server process: {}", command);
         Ok(child)
     }
 }
