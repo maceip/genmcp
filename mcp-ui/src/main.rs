@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
-use mcp_monitor::{run_monitor_app, MonitorArgs};
+use mcp_ui::{run_monitor_app, MonitorArgs};
 
 #[derive(Parser)]
-#[command(name = "mcp-monitor")]
-#[command(about = "Monitor for MCP proxy servers")]
+#[command(name = "mcp-ui")]
+#[command(about = "TUI monitor for Assist MCP")]
 pub struct Args {
     /// IPC socket path for proxy communication
     #[arg(short, long, default_value = "/tmp/mcp-monitor.sock")]

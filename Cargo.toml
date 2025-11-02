@@ -2,9 +2,9 @@
 members = [
     "mcp-core",
     "mcp-common",
-    "mcp-proxy",
-    "mcp-monitor",
-    "mcp-trace",
+    "mcp-transport",
+    "mcp-ui",
+    "mcp-cli",
     "tests"
 ]
 resolver = "2"

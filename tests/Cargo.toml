@@ -1,12 +1,12 @@
 [package]
-name = "mcp-trace-e2e-tests"
+name = "assist-mcp-e2e-tests"
 version = "0.2.0"
 edition = "2021"
 
 [dependencies]
 mcp-common = { path = "../mcp-common" }
-mcp-proxy = { path = "../mcp-proxy" }
-mcp-monitor = { path = "../mcp-monitor" }
+mcp-transport = { path = "../mcp-transport" }
+mcp-ui = { path = "../mcp-ui" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

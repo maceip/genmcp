@@ -2,9 +2,9 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "mcp-trace")]
-#[command(about = "Unified MCP probing and monitoring tool")]
-#[command(version = "0.1.0")]
+#[command(name = "assist-mcp")]
+#[command(about = "Intelligent MCP proxy with monitoring")]
+#[command(version = "0.2.0")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -76,7 +76,7 @@ async fn main() -> Result<()> {
 
 async fn run_monitor(ipc_socket: String, verbose: bool) -> Result<()> {
     // Import the monitor functionality
-    use mcp_monitor::{run_monitor_app, MonitorArgs};
+    use mcp_ui::{run_monitor_app, MonitorArgs};
 
     let args = MonitorArgs {
         ipc_socket,
@@ -95,7 +95,7 @@ async fn run_proxy(
     no_monitor: bool,
 ) -> Result<()> {
     // Import the proxy functionality
-    use mcp_proxy::{run_proxy_app, ProxyArgs};
+    use mcp_transport::{run_proxy_app, ProxyArgs};
 
     let args = ProxyArgs {
         command,

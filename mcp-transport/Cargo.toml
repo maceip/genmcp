@@ -1,5 +1,5 @@
 [package]
-name = "mcp-proxy"
+name = "mcp-transport"
 version = "0.2.0"
 edition = "2021"
 
@@ -7,7 +7,7 @@ edition = "2021"
 dist = false
 
 [[bin]]
-name = "mcp-proxy"
+name = "mcp-transport"
 path = "src/main.rs"
 
 [dependencies]

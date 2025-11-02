@@ -1,12 +1,12 @@
 use anyhow::Result;
 use clap::Parser;
-use mcp_proxy::{run_proxy_app, ProxyArgs};
+use mcp_transport::{run_proxy_app, ProxyArgs};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
 #[derive(Parser)]
-#[command(name = "mcp-proxy")]
-#[command(about = "STDIO-based MCP proxy server")]
+#[command(name = "mcp-transport")]
+#[command(about = "Transport proxy for Assist MCP")]
 pub struct Args {
     /// MCP server command to proxy (as a single string, will be executed via shell)
     #[arg(short, long)]
