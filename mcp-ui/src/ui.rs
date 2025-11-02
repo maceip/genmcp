@@ -193,6 +193,7 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
         TabType::Messages,
         TabType::Errors,
         TabType::System,
+        TabType::Hooks,
     ]
     .iter()
     .map(|&tab| {
@@ -201,6 +202,7 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
             TabType::Messages => ("Messages", "💬", "M"),
             TabType::Errors => ("Errors", "❗", "E"),
             TabType::System => ("System", "⚡", "S"),
+            TabType::Hooks => ("Hooks", "🪝", "H"),
         };
 
         // Use emoji with fallback for limited terminals
@@ -248,6 +250,7 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
             TabType::Messages => 1,
             TabType::Errors => 2,
             TabType::System => 3,
+            TabType::Hooks => 4,
         });
 
     f.render_widget(tabs_widget, area);

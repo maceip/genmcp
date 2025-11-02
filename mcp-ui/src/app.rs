@@ -1,4 +1,4 @@
-use mcp_common::{LogEntry, LogLevel, ProxyId, ProxyInfo, ProxyStats};
+use mcp_common::{InterceptorManagerInfo, LogEntry, LogLevel, ProxyId, ProxyInfo, ProxyStats};
 use std::collections::HashMap;
 
 use crate::search::{SearchEngine, SearchResult};
@@ -9,6 +9,10 @@ pub enum AppEvent {
     ProxyDisconnected(ProxyId),
     NewLogEntry(LogEntry),
     StatsUpdate(ProxyStats),
+    InterceptorStats {
+        proxy_id: ProxyId,
+        stats: InterceptorManagerInfo,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -17,6 +21,7 @@ pub enum TabType {
     Messages, // Request + Response only
     Errors,   // Error + Warning
     System,   // Info + Debug + connection/disconnection logs
+    Hooks,    // Interceptor statistics and control
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,6 +59,7 @@ pub struct App {
     pub show_help_dialog: bool,     // Whether to show the help dialog
     pub search_engine: SearchEngine, // Fuzzy search engine
     pub fuzzy_search_results: Vec<SearchResult>, // Results from fuzzy search
+    pub interceptor_stats: HashMap<ProxyId, InterceptorManagerInfo>, // Interceptor stats per proxy
 }
 
 #[derive(Debug, Clone)]
@@ -98,6 +104,14 @@ impl App {
                 navigation_mode: NavigationMode::Follow,
             },
         );
+        tab_states.insert(
+            TabType::Hooks,
+            ListState {
+                selected_index: 0,
+                viewport_offset: 0,
+                navigation_mode: NavigationMode::Navigate, // Hooks panel uses navigation
+            },
+        );
 
         Self {
             proxies: HashMap::new(),
@@ -120,6 +134,7 @@ impl App {
             show_help_dialog: false,
             search_engine: SearchEngine::new(),
             fuzzy_search_results: Vec::new(),
+            interceptor_stats: HashMap::new(),
         }
     }
 
@@ -175,6 +190,9 @@ impl App {
                 if let Some(proxy) = self.proxies.get_mut(&stats.proxy_id) {
                     proxy.stats = stats;
                 }
+            }
+            AppEvent::InterceptorStats { proxy_id, stats } => {
+                self.interceptor_stats.insert(proxy_id, stats);
             }
         }
     }
@@ -434,6 +452,7 @@ impl App {
                     }
                     TabType::Errors => matches!(log.level, LogLevel::Error | LogLevel::Warning),
                     TabType::System => matches!(log.level, LogLevel::Info | LogLevel::Debug),
+                    TabType::Hooks => false, // Hooks tab doesn't show logs
                 }
             })
             .collect()
@@ -468,17 +487,19 @@ impl App {
             TabType::All => TabType::Messages,
             TabType::Messages => TabType::Errors,
             TabType::Errors => TabType::System,
-            TabType::System => TabType::All,
+            TabType::System => TabType::Hooks,
+            TabType::Hooks => TabType::All,
         };
         self.switch_tab(next_tab);
     }
 
     pub fn prev_tab(&mut self) {
         let prev_tab = match self.active_tab {
-            TabType::All => TabType::System,
+            TabType::All => TabType::Hooks,
             TabType::Messages => TabType::All,
             TabType::Errors => TabType::Messages,
             TabType::System => TabType::Errors,
+            TabType::Hooks => TabType::System,
         };
         self.switch_tab(prev_tab);
     }
@@ -502,6 +523,7 @@ impl App {
                     }
                     TabType::Errors => matches!(log.level, LogLevel::Error | LogLevel::Warning),
                     TabType::System => matches!(log.level, LogLevel::Info | LogLevel::Debug),
+                    TabType::Hooks => false, // Hooks tab doesn't show logs
                 }
             })
             .count()
@@ -786,6 +808,7 @@ impl App {
                                 TabType::Messages => matches!(log.level, LogLevel::Request | LogLevel::Response),
                                 TabType::Errors => matches!(log.level, LogLevel::Error | LogLevel::Warning),
                                 TabType::System => matches!(log.level, LogLevel::Info | LogLevel::Debug),
+                                TabType::Hooks => false,
                             };
 
                             if matches_tab {
@@ -805,6 +828,7 @@ impl App {
                                         TabType::Messages => matches!(log.level, LogLevel::Request | LogLevel::Response),
                                         TabType::Errors => matches!(log.level, LogLevel::Error | LogLevel::Warning),
                                         TabType::System => matches!(log.level, LogLevel::Info | LogLevel::Debug),
+                                        TabType::Hooks => false,
                                     };
 
                                     if matches_tab && !self.search_results.contains(&log_index) {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use mcp_common::{IpcMessage, LogEntry, LogLevel, ProxyId, ProxyStats};
+use mcp_common::{IpcMessage, InterceptorInfo, InterceptorManagerInfo, LogEntry, LogLevel, ProxyId, ProxyStats};
 use mcp_core::interceptor::{InterceptorManager, MessageDirection};
 use mcp_core::messages::JsonRpcMessage;
 use std::sync::Arc;
@@ -94,9 +94,19 @@ impl StdioHandler {
                 // Handle stats updates
                 _ = self.stats_interval.tick() => {
                     if let Some(ref client) = self.ipc_client {
+                        // Send proxy stats
                         let stats = self.stats.lock().await.clone();
                         if let Err(e) = client.send(IpcMessage::StatsUpdate(stats)).await {
                             warn!("Failed to send stats update: {}", e);
+                        }
+
+                        // Send interceptor stats
+                        let interceptor_stats = self.get_interceptor_stats().await;
+                        if let Err(e) = client.send(IpcMessage::InterceptorStats {
+                            proxy_id: self.proxy_id.clone(),
+                            stats: interceptor_stats,
+                        }).await {
+                            warn!("Failed to send interceptor stats: {}", e);
                         }
                     }
                 }
@@ -374,5 +384,35 @@ impl StdioHandler {
         }
 
         error!("Child stderr: {}", content.trim());
+    }
+
+    /// Get interceptor statistics from the manager
+    async fn get_interceptor_stats(&self) -> InterceptorManagerInfo {
+        let manager_stats = self.interceptor_manager.get_stats().await;
+        let interceptor_names = self.interceptor_manager.list_interceptors().await;
+
+        let mut interceptors = Vec::new();
+        for name in interceptor_names {
+            // Note: We don't currently track enabled/disabled state per interceptor
+            // This would require adding that capability to InterceptorManager
+            interceptors.push(InterceptorInfo {
+                name: name.clone(),
+                priority: 0, // Would need to query this from the actual interceptor
+                enabled: true, // Assume enabled for now
+                total_intercepted: 0, // Would need per-interceptor tracking
+                total_modified: 0,
+                total_blocked: 0,
+                avg_processing_time_ms: 0.0,
+            });
+        }
+
+        InterceptorManagerInfo {
+            total_messages_processed: manager_stats.total_messages_processed,
+            total_modifications_made: manager_stats.total_modifications_made,
+            total_messages_blocked: manager_stats.total_messages_blocked,
+            avg_processing_time_ms: manager_stats.avg_processing_time_ms,
+            messages_by_method: manager_stats.messages_by_method,
+            interceptors,
+        }
     }
 }
