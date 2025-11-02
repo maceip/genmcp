@@ -75,6 +75,7 @@ fn test_ipc_message_proxy_connected_serialization() {
         target_command: vec!["python".to_string(), "server.py".to_string()],
         status: ProxyStatus::Running,
         stats: ProxyStats::default(),
+        transport_type: mcp_common::TransportType::Stdio,
     };
 
     let message = IpcMessage::ProxyStarted(proxy_info.clone());
@@ -183,6 +184,7 @@ fn test_all_ipc_message_variants() {
             target_command: vec!["node".to_string(), "server.js".to_string()],
             status: ProxyStatus::Starting,
             stats: ProxyStats::default(),
+            transport_type: mcp_common::TransportType::Stdio,
         }),
         IpcMessage::ProxyStopped(proxy_id.clone()),
     ];

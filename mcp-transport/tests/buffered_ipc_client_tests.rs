@@ -1,5 +1,5 @@
 use mcp_common::*;
-use mcp_proxy::BufferedIpcClient;
+use mcp_transport::BufferedIpcClient;
 use tempfile::tempdir;
 use tokio::time::{sleep, Duration};
 

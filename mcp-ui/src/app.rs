@@ -1,6 +1,8 @@
 use mcp_common::{LogEntry, LogLevel, ProxyId, ProxyInfo, ProxyStats};
 use std::collections::HashMap;
 
+use crate::search::{SearchEngine, SearchResult};
+
 #[derive(Debug)]
 pub enum AppEvent {
     ProxyConnected(ProxyInfo),
@@ -50,6 +52,8 @@ pub struct App {
     pub search_results: Vec<usize>, // Indices of matching logs in the main logs vector
     pub search_cursor: usize,       // Current cursor position in search input
     pub show_help_dialog: bool,     // Whether to show the help dialog
+    pub search_engine: SearchEngine, // Fuzzy search engine
+    pub fuzzy_search_results: Vec<SearchResult>, // Results from fuzzy search
 }
 
 #[derive(Debug, Clone)]
@@ -114,6 +118,8 @@ impl App {
             search_results: Vec::new(),
             search_cursor: 0,
             show_help_dialog: false,
+            search_engine: SearchEngine::new(),
+            fuzzy_search_results: Vec::new(),
         }
     }
 
@@ -121,12 +127,14 @@ impl App {
         match event {
             AppEvent::ProxyConnected(info) => {
                 self.proxies.insert(info.id.clone(), info);
+                self.reindex_search();
             }
             AppEvent::ProxyDisconnected(id) => {
                 self.proxies.remove(&id);
                 if self.selected_proxy.as_ref() == Some(&id) {
                     self.selected_proxy = None;
                 }
+                self.reindex_search();
             }
             AppEvent::NewLogEntry(entry) => {
                 // Store all logs without filtering (logs are added at the bottom)
@@ -151,6 +159,9 @@ impl App {
                         }
                     }
                 }
+
+                // Reindex search with new log
+                self.reindex_search();
 
                 // In follow mode, automatically select the latest log
                 if self.navigation_mode == NavigationMode::Follow {
@@ -740,6 +751,7 @@ impl App {
 
     fn update_search_results(&mut self) {
         self.search_results.clear();
+        self.fuzzy_search_results.clear();
 
         if self.search_query.is_empty() {
             self.selected_index = 0;
@@ -747,48 +759,81 @@ impl App {
             return;
         }
 
-        let query_lower = self.search_query.to_lowercase();
+        // Use fuzzy search engine
+        const SEARCH_LIMIT: usize = 100;
+        let results = self.search_engine.search(&self.search_query, SEARCH_LIMIT);
 
-        // Find matching log indices
-        for (index, log) in self.logs.iter().enumerate() {
-            // Apply proxy filter if any
-            if let Some(ref selected_proxy) = self.selected_proxy {
-                if &log.proxy_id != selected_proxy {
-                    continue;
+        // Convert search results to log indices
+        for result in results {
+            if let Some(item) = self.search_engine.get_item(result.index) {
+                use crate::search::SearchCategory;
+
+                match item.category {
+                    SearchCategory::LogMessage => {
+                        // Find the log with matching message
+                        if let Some(log_index) = self.logs.iter().position(|log| log.message == item.name) {
+                            // Apply proxy filter if any
+                            if let Some(ref selected_proxy) = self.selected_proxy {
+                                if &self.logs[log_index].proxy_id != selected_proxy {
+                                    continue;
+                                }
+                            }
+
+                            // Apply tab filter
+                            let log = &self.logs[log_index];
+                            let matches_tab = match self.active_tab {
+                                TabType::All => true,
+                                TabType::Messages => matches!(log.level, LogLevel::Request | LogLevel::Response),
+                                TabType::Errors => matches!(log.level, LogLevel::Error | LogLevel::Warning),
+                                TabType::System => matches!(log.level, LogLevel::Info | LogLevel::Debug),
+                            };
+
+                            if matches_tab {
+                                self.search_results.push(log_index);
+                                self.fuzzy_search_results.push(result.clone());
+                            }
+                        }
+                    }
+                    SearchCategory::Proxy => {
+                        // Find all logs from this proxy
+                        for (log_index, log) in self.logs.iter().enumerate() {
+                            if let Some(proxy) = self.proxies.get(&log.proxy_id) {
+                                if proxy.name == item.name {
+                                    // Apply tab filter
+                                    let matches_tab = match self.active_tab {
+                                        TabType::All => true,
+                                        TabType::Messages => matches!(log.level, LogLevel::Request | LogLevel::Response),
+                                        TabType::Errors => matches!(log.level, LogLevel::Error | LogLevel::Warning),
+                                        TabType::System => matches!(log.level, LogLevel::Info | LogLevel::Debug),
+                                    };
+
+                                    if matches_tab && !self.search_results.contains(&log_index) {
+                                        self.search_results.push(log_index);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
                 }
-            }
-
-            // Apply tab filter
-            let matches_tab = match self.active_tab {
-                TabType::All => true,
-                TabType::Messages => matches!(log.level, LogLevel::Request | LogLevel::Response),
-                TabType::Errors => matches!(log.level, LogLevel::Error | LogLevel::Warning),
-                TabType::System => matches!(log.level, LogLevel::Info | LogLevel::Debug),
-            };
-
-            if !matches_tab {
-                continue;
-            }
-
-            // Check if log matches search query (case-insensitive)
-            let message_matches = log.message.to_lowercase().contains(&query_lower);
-            let proxy_name_matches = self
-                .proxies
-                .get(&log.proxy_id)
-                .map(|p| p.name.to_lowercase().contains(&query_lower))
-                .unwrap_or(false);
-            let level_matches = format!("{:?}", log.level)
-                .to_lowercase()
-                .contains(&query_lower);
-
-            if message_matches || proxy_name_matches || level_matches {
-                self.search_results.push(index);
             }
         }
 
         // Reset selection to first result
         self.selected_index = 0;
         self.viewport_offset = 0;
+    }
+
+    /// Reindex the search engine with current proxies and logs
+    fn reindex_search(&mut self) {
+        self.search_engine = SearchEngine::new();
+
+        // Index proxies
+        let proxy_list: Vec<ProxyInfo> = self.proxies.values().cloned().collect();
+        self.search_engine.index_proxies(&proxy_list);
+
+        // Index logs
+        self.search_engine.index_logs(&self.logs);
     }
 
     pub fn get_search_filtered_logs(&self) -> Vec<&LogEntry> {

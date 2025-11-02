@@ -1,5 +1,5 @@
 use mcp_common::*;
-use mcp_proxy::*;
+use mcp_transport::*;
 use std::sync::Arc;
 use tempfile::tempdir;
 use tokio::process::Command;

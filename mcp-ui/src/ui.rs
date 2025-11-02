@@ -617,18 +617,34 @@ fn draw_search_dialog(f: &mut Frame, app: &App, area: Rect) {
         )
         .style(Style::default().fg(Color::White));
 
-    // Results info
+    // Results info with fuzzy search details
     let results_count = app.search_results.len();
     let results_text = if app.search_query.is_empty() {
-        "Type to search...".to_string()
+        vec![Line::from("Type to search...")]
     } else if results_count == 0 {
-        "No results found".to_string()
+        vec![Line::from("No results found")]
     } else {
-        format!(
-            "{} result{} found",
+        let mut lines = vec![Line::from(format!(
+            "{} result{} found (fuzzy search)",
             results_count,
             if results_count == 1 { "" } else { "s" }
-        )
+        ))];
+
+        // Show top 3 fuzzy search results with scores
+        for (i, result) in app.fuzzy_search_results.iter().take(3).enumerate() {
+            if let Some(item) = app.search_engine.get_item(result.index) {
+                let score_bar = "█".repeat((result.score / 10.0).min(10.0) as usize);
+                lines.push(Line::from(format!(
+                    "  {}. {} {} [{}]",
+                    i + 1,
+                    score_bar,
+                    item.name.chars().take(30).collect::<String>(),
+                    result.match_reason
+                )));
+            }
+        }
+
+        lines
     };
 
     let results_paragraph = Paragraph::new(results_text)
@@ -649,7 +665,7 @@ fn draw_search_dialog(f: &mut Frame, app: &App, area: Rect) {
     // Instructions
     let instructions = vec![
         Line::from("ESC: Exit search | Enter: Navigate to results | ↑↓: Navigate results"),
-        Line::from("Type to filter logs by message, proxy name, or log level"),
+        Line::from("Fuzzy search: matches message content, proxy names, and log levels"),
     ];
 
     let instructions_paragraph = Paragraph::new(instructions)

@@ -1,5 +1,5 @@
 use mcp_common::*;
-use mcp_monitor::*;
+use mcp_ui::*;
 
 #[test]
 fn test_app_creation() {
@@ -35,6 +35,7 @@ fn test_app_handle_proxy_connected() {
         target_command: vec!["python".to_string(), "server.py".to_string()],
         status: ProxyStatus::Running,
         stats: ProxyStats::default(),
+        transport_type: TransportType::Stdio,
     };
 
     app.handle_event(AppEvent::ProxyConnected(proxy_info.clone()));
@@ -56,6 +57,7 @@ fn test_app_handle_proxy_disconnected() {
         target_command: vec!["python".to_string(), "server.py".to_string()],
         status: ProxyStatus::Running,
         stats: ProxyStats::default(),
+        transport_type: TransportType::Stdio,
     };
 
     // Add proxy first
@@ -104,6 +106,7 @@ fn test_app_handle_stats_update() {
         target_command: vec!["python".to_string(), "server.py".to_string()],
         status: ProxyStatus::Running,
         stats: ProxyStats::default(),
+        transport_type: TransportType::Stdio,
     };
     app.handle_event(AppEvent::ProxyConnected(proxy_info));
 
@@ -346,6 +349,7 @@ fn test_app_proxy_selection() {
         target_command: vec!["python".to_string(), "server1.py".to_string()],
         status: ProxyStatus::Running,
         stats: ProxyStats::default(),
+        transport_type: TransportType::Stdio,
     };
     let proxy_info2 = ProxyInfo {
         id: proxy_id2.clone(),
@@ -354,6 +358,7 @@ fn test_app_proxy_selection() {
         target_command: vec!["python".to_string(), "server2.py".to_string()],
         status: ProxyStatus::Running,
         stats: ProxyStats::default(),
+        transport_type: TransportType::Stdio,
     };
 
     app.handle_event(AppEvent::ProxyConnected(proxy_info1));
@@ -510,6 +515,7 @@ fn test_app_total_stats() {
             uptime: std::time::Duration::from_secs(3600),
             bytes_transferred: 1024000,
         },
+        transport_type: TransportType::Stdio,
     };
 
     let proxy_info2 = ProxyInfo {
@@ -527,6 +533,7 @@ fn test_app_total_stats() {
             uptime: std::time::Duration::from_secs(1800),
             bytes_transferred: 512000,
         },
+        transport_type: TransportType::Stdio,
     };
 
     app.handle_event(AppEvent::ProxyConnected(proxy_info1));

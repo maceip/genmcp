@@ -14,6 +14,7 @@ use tokio::sync::mpsc;
 // Remove unused tracing imports that interfere with TUI
 
 mod app;
+mod search;
 mod ui;
 
 // Export for testing and internal use

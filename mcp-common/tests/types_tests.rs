@@ -252,6 +252,7 @@ fn test_proxy_info_complete() {
         target_command: vec!["python".to_string(), "server.py".to_string()],
         status: ProxyStatus::Running,
         stats: stats.clone(),
+        transport_type: mcp_common::TransportType::Stdio,
     };
 
     let serialized = serde_json::to_string(&info).unwrap();

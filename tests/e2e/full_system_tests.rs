@@ -1,6 +1,6 @@
 use mcp_common::*;
-use mcp_monitor::{App, AppEvent};
-use mcp_proxy::BufferedIpcClient;
+use mcp_ui::{App, AppEvent};
+use mcp_transport::BufferedIpcClient;
 use tempfile::tempdir;
 use tokio::time::{sleep, Duration};
 
@@ -44,6 +44,7 @@ async fn test_end_to_end_proxy_monitor_communication() {
             target_command: vec!["python".to_string(), format!("server{}.py", i)],
             status: ProxyStatus::Running,
             stats: ProxyStats::default(),
+            transport_type: TransportType::Stdio,
         };
 
         proxy_clients[i]
@@ -179,20 +180,20 @@ async fn test_end_to_end_proxy_monitor_communication() {
     assert_eq!(total_stats.active_connections, 3); // 1 per proxy
 
     // Test log filtering by different tabs
-    app.switch_tab(mcp_monitor::TabType::All);
+    app.switch_tab(TabType::All);
     assert_eq!(app.get_filtered_logs().len(), 30);
 
-    app.switch_tab(mcp_monitor::TabType::Messages);
+    app.switch_tab(TabType::Messages);
     assert_eq!(app.get_filtered_logs().len(), 30); // All are Request/Response
 
-    app.switch_tab(mcp_monitor::TabType::Errors);
+    app.switch_tab(TabType::Errors);
     assert_eq!(app.get_filtered_logs().len(), 0); // No errors
 
-    app.switch_tab(mcp_monitor::TabType::System);
+    app.switch_tab(TabType::System);
     assert_eq!(app.get_filtered_logs().len(), 0); // No system logs
 
     // Test proxy-specific filtering
-    app.switch_tab(mcp_monitor::TabType::All);
+    app.switch_tab(TabType::All);
     app.selected_proxy = Some(proxy_ids[0].clone());
     let proxy_0_logs = app.get_filtered_logs();
     assert_eq!(proxy_0_logs.len(), 10); // 5 iterations × 2 log entries
@@ -241,7 +242,7 @@ async fn test_error_handling_end_to_end() {
 
     let server = IpcServer::bind(&socket_path).await.unwrap();
     let mut app = App::new();
-    app.switch_tab(mcp_monitor::TabType::All); // See all log types
+    app.switch_tab(TabType::All); // See all log types
 
     // Create proxy client
     let proxy_client = BufferedIpcClient::new(socket_path.clone()).await;
@@ -259,6 +260,7 @@ async fn test_error_handling_end_to_end() {
         target_command: vec!["python".to_string(), "error_server.py".to_string()],
         status: ProxyStatus::Running,
         stats: ProxyStats::default(),
+            transport_type: TransportType::Stdio,
     };
 
     proxy_client
@@ -345,11 +347,11 @@ async fn test_error_handling_end_to_end() {
     assert_eq!(app.logs.len(), 6);
 
     // Test filtering by error types
-    app.switch_tab(mcp_monitor::TabType::Errors);
+    app.switch_tab(TabType::Errors);
     let error_logs = app.get_filtered_logs();
     assert_eq!(error_logs.len(), 2); // 1 Error + 1 Warning
 
-    app.switch_tab(mcp_monitor::TabType::Messages);
+    app.switch_tab(TabType::Messages);
     let message_logs = app.get_filtered_logs();
     assert_eq!(message_logs.len(), 4); // 2 Requests + 2 Responses
 
@@ -360,7 +362,7 @@ async fn test_error_handling_end_to_end() {
     assert_eq!(proxy.stats.failed_requests, 2);
 
     // Search functionality with error content
-    app.switch_tab(mcp_monitor::TabType::All);
+    app.switch_tab(TabType::All);
     app.enter_search_mode();
 
     // Search for "timeout" which should only match the error log
@@ -395,7 +397,7 @@ async fn test_high_throughput_end_to_end() {
 
     let server = IpcServer::bind(&socket_path).await.unwrap();
     let mut app = App::new();
-    app.switch_tab(mcp_monitor::TabType::All);
+    app.switch_tab(TabType::All);
 
     let proxy_client = BufferedIpcClient::new(socket_path.clone()).await;
 
@@ -415,6 +417,7 @@ async fn test_high_throughput_end_to_end() {
         ],
         status: ProxyStatus::Running,
         stats: ProxyStats::default(),
+            transport_type: TransportType::Stdio,
     };
 
     proxy_client

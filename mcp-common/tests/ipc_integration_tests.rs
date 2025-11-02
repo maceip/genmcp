@@ -316,6 +316,7 @@ async fn test_message_types() {
             target_command: vec!["python".to_string(), "server.py".to_string()],
             status: ProxyStatus::Running,
             stats: ProxyStats::default(),
+            transport_type: mcp_common::TransportType::Stdio,
         };
 
         client
