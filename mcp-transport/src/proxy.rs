@@ -8,6 +8,7 @@ use tracing::{info, warn};
 
 use crate::buffered_ipc_client::BufferedIpcClient;
 use crate::stdio_handler::StdioHandler;
+use crate::http_handler::HttpHandler;
 use crate::transport_config::TransportConfig;
 
 pub struct MCPProxy {
@@ -103,8 +104,28 @@ impl MCPProxy {
                 result
             }
             TransportConfig::HttpSse { .. } | TransportConfig::HttpStream { .. } => {
-                // TODO: Implement HTTP transport handling in next iteration
-                Err(anyhow::anyhow!("HTTP transports not yet implemented. Coming in Stage 1.5!"))
+                // Create HTTP handler
+                let mut handler =
+                    HttpHandler::new(self.id.clone(), self.stats.clone(), buffered_client.clone()).await?;
+
+                // Handle HTTP communication
+                let result = handler.handle_communication(&self.transport_config, shutdown_rx).await;
+
+                // Clean up
+                info!("HTTP proxy {} shutting down", self.name);
+
+                // Send proxy stopped message and shutdown buffered client
+                if let Some(client) = buffered_client {
+                    if let Err(e) = client.send(IpcMessage::ProxyStopped(self.id.clone())).await {
+                        warn!("Failed to send proxy stopped message: {}", e);
+                    }
+                    // Take the client out of the Arc and shutdown
+                    if let Ok(client) = Arc::try_unwrap(client) {
+                        client.shutdown().await;
+                    }
+                }
+
+                result
             }
         }
     }

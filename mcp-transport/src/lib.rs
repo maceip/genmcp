@@ -5,6 +5,7 @@ use tracing::info;
 mod buffered_ipc_client;
 mod proxy;
 mod stdio_handler;
+mod http_handler;
 mod transport_config;
 
 use proxy::MCPProxy;
@@ -12,6 +13,7 @@ use proxy::MCPProxy;
 // Export modules for testing
 pub use buffered_ipc_client::BufferedIpcClient;
 pub use stdio_handler::StdioHandler;
+pub use http_handler::HttpHandler;
 pub use transport_config::TransportConfig;
 
 pub struct ProxyArgs {
