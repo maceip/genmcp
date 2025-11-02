@@ -84,9 +84,16 @@ fn draw_proxy_list(f: &mut Frame, app: &App, area: Rect) {
                 ""
             };
 
+            // Transport type indicator
+            let transport_indicator = match proxy.transport_type {
+                mcp_common::TransportType::Stdio => "📟",
+                mcp_common::TransportType::HttpSse => "🌐",
+                mcp_common::TransportType::HttpStream => "🔄",
+            };
+
             let text = format!(
-                "{} {} ({}){}",
-                status_symbol, proxy.name, proxy.stats.total_requests, filter_indicator
+                "{} {} {} ({}){}",
+                status_symbol, transport_indicator, proxy.name, proxy.stats.total_requests, filter_indicator
             );
 
             // Highlight the filtered proxy
