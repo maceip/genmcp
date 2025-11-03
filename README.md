@@ -1,7 +1,6 @@
-<div align="center">
-<img width="320" height="229" alt="GEM2" src="https://github.com/user-attachments/assets/cdc7c62a-7890-4f97-98d1-35525500b0e9" />
-</div>
 
+
+![jbad](https://github.com/user-attachments/assets/7eb5f1ca-a643-4ad3-9b94-4f98a818b439)
 
 
 ##  
