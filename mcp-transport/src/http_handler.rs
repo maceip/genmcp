@@ -3,13 +3,14 @@ use mcp_common::{IpcMessage, LogEntry, LogLevel, ProxyId, ProxyStats};
 use mcp_core::{McpClient, TransportConfig as McpTransportConfig};
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::buffered_ipc_client::BufferedIpcClient;
 use crate::transport_config::TransportConfig;
 
 pub struct HttpHandler {
     proxy_id: ProxyId,
+    #[allow(dead_code)] // Reserved for future HTTP stats tracking
     stats: Arc<Mutex<ProxyStats>>,
     ipc_client: Option<Arc<BufferedIpcClient>>,
 }

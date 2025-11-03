@@ -1,18 +1,31 @@
 [package]
-name = "assist-mcp-e2e-tests"
-version = "0.2.0"
+name = "assist-mcp-tests"
+version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-mcp-common = { path = "../mcp-common" }
-mcp-transport = { path = "../mcp-transport" }
-mcp-ui = { path = "../mcp-ui" }
+# Core dependencies
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
-tempfile = "3.0"
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
 
-[[test]]
-name = "e2e_tests"
-path = "e2e/mod.rs"
+# Test utilities
+tokio-test = "0.4"
+tempfile = "3.8"
+wiremock = "0.6"
+assert_matches = "1.5"
+tracing-test = "0.2"
+
+# Internal dependencies
+mcp-common = { path = "../mcp-common" }
+mcp-core = { path = "../mcp-core" }
+mcp-transport = { path = "../mcp-transport" }
+mcp-llm = { path = "../mcp-llm" }
+
+[[bin]]
+name = "test-runner"
+path = "src/main.rs"

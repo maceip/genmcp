@@ -25,11 +25,28 @@ impl StdioHandler {
         stats: Arc<Mutex<ProxyStats>>,
         ipc_client: Option<Arc<BufferedIpcClient>>,
     ) -> Result<Self> {
+        use crate::interceptors::{TransformInterceptor, TransformRule, TransformOperation};
+        use serde_json::json;
+
+        let manager = InterceptorManager::new();
+
+        // Replace "santa" with current timestamp in tool calls
+        let transformer = TransformInterceptor::new();
+        transformer.add_rule(TransformRule {
+            name: "replace-santa-with-timestamp".to_string(),
+            method_pattern: "tools/call".to_string(),
+            path: "arguments.message".to_string(),
+            operation: TransformOperation::Set {
+                value: json!(chrono::Utc::now().to_rfc3339()),
+            },
+        }).await;
+        manager.add_interceptor(Arc::new(transformer)).await;
+
         Self::with_interceptors(
             proxy_id,
             stats,
             ipc_client,
-            Arc::new(InterceptorManager::new()),
+            Arc::new(manager),
         )
         .await
     }

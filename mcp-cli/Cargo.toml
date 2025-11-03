@@ -15,5 +15,5 @@ dist = true
 clap = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
-mcp-ui = { path = "../mcp-ui" }
+mcp-tui = { path = "../mcp-tui" }
 mcp-transport = { path = "../mcp-transport" }

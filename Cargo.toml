@@ -3,11 +3,15 @@ members = [
     "mcp-core",
     "mcp-common",
     "mcp-transport",
-    "mcp-ui",
+    "mcp-tui",
     "mcp-cli",
+    "mcp-llm",
     "tests"
 ]
 resolver = "2"
+
+# Set default binary for cargo run
+default-run = "mcp-cli"
 
 [workspace.dependencies]
 # Core async and runtime

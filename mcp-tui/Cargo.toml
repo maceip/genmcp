@@ -1,0 +1,31 @@
+[package]
+name = "mcp-tui"
+version = "0.1.0"
+edition = "2021"
+description = "Next-generation TUI for MCP gateway with intuitive interface"
+authors = ["MCP Team"]
+license = "MIT"
+
+[dependencies]
+ratatui = "0.24"
+crossterm = "0.27"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Local dependencies
+mcp-common = { path = "../mcp-common" }
+mcp-core = { path = "../mcp-core" }
+
+[features]
+default = ["full"]
+full = ["llm-integration"]
+llm-integration = []
+
+[[bin]]
+name = "mcp-tui"
+path = "src/main.rs"

@@ -1,4 +1,9 @@
-use crate::{LogEntry, ProxyId, ProxyInfo, ProxyStats};
+use crate::{
+    AppliedTransformation, ClientId, ClientInfo, GatewayMetrics, GatewayState, HealthMetrics,
+    LogEntry, MessageFlow, ProxyId, ProxyInfo, ProxySession, ProxyStats, RoutingDecision,
+    RoutingRule, ServerId, ServerInfo, SessionId, TransformationRule,
+};
+use crate::{JsonRpcRequest, JsonRpcResponse};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -36,6 +41,39 @@ pub enum IpcMessage {
         proxy_id: ProxyId,
         stats: InterceptorManagerInfo,
     },
+    ClientConnected(ClientInfo),
+    ClientDisconnected(ClientId),
+    ClientUpdated(ClientInfo),
+    ClientRequest {
+        client_id: ClientId,
+        request: JsonRpcRequest,
+        session_id: Option<SessionId>,
+    },
+    ServerConnected(ServerInfo),
+    ServerDisconnected(ServerId),
+    ServerUpdated(ServerInfo),
+    ServerResponse {
+        server_id: ServerId,
+        response: JsonRpcResponse,
+        session_id: Option<SessionId>,
+    },
+    ServerHealthUpdate {
+        server_id: ServerId,
+        metrics: HealthMetrics,
+    },
+    SessionStarted(ProxySession),
+    SessionUpdated(ProxySession),
+    SessionEnded(SessionId),
+    TransformationRules(Vec<TransformationRule>),
+    TransformationApplied {
+        session_id: SessionId,
+        transformation: AppliedTransformation,
+    },
+    RoutingRules(Vec<RoutingRule>),
+    RoutingDecision(RoutingDecision),
+    GatewayStateUpdated(GatewayState),
+    GatewayMetrics(GatewayMetrics),
+    MessageFlowUpdate(MessageFlow),
 
     // Monitor -> Proxy messages
     GetStatus(ProxyId),
