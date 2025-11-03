@@ -1,162 +1,162 @@
-# Assist MCP
+<div align="center">
+<img width="320" height="229" alt="GEM2" src="https://github.com/user-attachments/assets/cdc7c62a-7890-4f97-98d1-35525500b0e9" />
+</div>
 
-**Intelligent MCP Proxy with Real-Time Monitoring**
 
-An advanced Model Context Protocol (MCP) proxy that combines transparent monitoring, traffic modification, and LLM-powered intelligent routing.
+
+## 🟡
+
+`MCP is a pain to configure, discover, and use the way you want`
+
+- Complex setup with multiple configuration files and environment variables
+- No visibility into which tools are available or how they're being used
+- Every request goes through the same path regardless of complexity
+- No way to optimize tool selection or predict which tools will be needed
+- Difficult to monitor and debug tool usage in real-time
+- Sandboxing untrusted code requires infrastructure
+
+
+
+## its a client-side thing
+<img height="266" alt="Screenshot 2025-11-02 at 5 55 34 AM" src="https://github.com/user-attachments/assets/24182435-d1e3-4500-a2e8-9f4703e07be7" />
+
+**genmcp** brings the fun back in for MCP: route, optimize, generate [securely]
+
+Stack:
+- fast: async runtime with tokio & sql in WAL mode for routing decisions (0.01-0.05ms)
+- universal: openai-api, rust lib, mcp
+- alpha: dspy-rs based GEPA optimizer for optimized tool aggregation; spend less faster
+- standard: http, sse, stdio, ws
+- secure: litert-lm serves, your prompts trigger new mcp tools, our sandbox saves
 
 ## Features
 
-### Stage 1 - Foundation ✅ COMPLETE
-- ✅ **Multi-transport support** - stdio, HTTP+SSE (HTTP streaming planned)
-- ✅ **Real-time TUI monitoring** - Monitor multiple MCP servers simultaneously
-- ✅ **Transparent interception** - Zero-impact STDIO proxying
-- ✅ **Resilient IPC** - Buffered communication with auto-reconnection
-- ✅ **Complete protocol support** - Tools, resources, prompts, logging, sampling
-- ✅ **Fuzzy search** - Fast keyword matching with similarity scoring
-- ✅ **122 passing tests** - Comprehensive test coverage
-
-### Stage 2 - Traffic Modification ✅ COMPLETE
-- ✅ **Interceptor framework** - Pluggable message interceptors with stats tracking
-- ✅ **4 Built-in interceptors** - Logging, validation, rate limiting, transform
-- ✅ **Request/response transformation** - JSON path-based field modifications
-- ✅ **Hooks TUI tab** - Real-time interceptor statistics and monitoring
-- ✅ **22 interceptor tests** - Full test coverage for all interceptor types
-
-### Stage 3 - LLM Intelligence 🔨 IN PROGRESS
-- 🔨 **mcp-llm crate** - LiteRT-LM integration with C++ bindings (not yet integrated)
-- 🔨 **DSPy-RS** - Structured prediction and tool routing (implemented)
-- 🔨 **SQLite database** - Routing rules and metrics storage (implemented)
-- 🔨 **GEPA optimizer** - Prompt optimization framework (implemented)
-- ⏳ **Integration** - Connect mcp-llm to main proxy workflow (pending)
+- [x] Proxy stdio
+- [x] Proxy SSE
+- [x] Proxy HTTP
+- [x] Accelerated LLM
+- [x] Terminal UI
+- [ ] Generative Tool Injection
+- [x] Sandbox runtime (WASM/WASI with wasmtime) and custom bochs transpiled linux env
 
 ## Quick Start
 
 ```bash
-# Build all components
+# Build
 cargo build --release
 
-# Terminal 1: Start UI monitor
-./target/release/mcp-cli monitor
+# Run server
+cargo run --release
 
-# Terminal 2: Start transport proxy with stdio server
-./target/release/mcp-cli proxy \
-  --name "My Server" \
-  --command "python server.py"
+# Run with custom config
+DATABASE_PATH=./proxy.db \
+UPSTREAM_URL=http://localhost:9000 \
+HTTP_LISTEN_ADDR=127.0.0.1:4000 \
+cargo run --release
+
+# Examples
+cargo run --example llm_demo
+cargo run --example gepa_tool_judge
+cargo run --example wasm_test
+```
+
+## Configuration
+
+Environment variables:
+
+```bash
+DATABASE_PATH=./mcp_proxy.db               # SQLite database file
+UPSTREAM_URL=http://localhost:9000         # Upstream MCP server
+MODEL_NAME=gemma-3n-E4B                    # LLM model name
+UI_LISTEN_ADDR=127.0.0.1:8081             # WebSocket UI address
+HTTP_LISTEN_ADDR=127.0.0.1:4000           # HTTP transport address
+ENABLE_STDIO=false                         # Enable stdio transport
+LM_BASE_URL=http://localhost:3000/v1      # LLM API base URL
+LM_API_KEY=                                # LLM API key (optional)
+LM_TEMPERATURE=0.7                         # LLM temperature
+LM_MAX_TOKENS=512                          # LLM max tokens
+WASM_PATH=$HOME/amd64.wasm                 # Path to WASM module (for examples)
 ```
 
 ## Architecture
 
+### Dual-Path Routing
+
+1. **Fast Path (Bypass)**: Direct forwarding to upstream server
+   - No LLM overhead
+   - Sub-100ms latency (network bound)
+   - For simple, predictable tools
+
+2. **Slow Path (Semantic)**: LLM-enhanced routing
+   - Tool selection based on context
+   - Request modification
+   - Prediction accuracy tracking
+   - For complex, context-dependent tools
+
+### Routing Rules
+
+SQLite database stores per-tool routing decisions:
+
+```sql
+-- View routing rules
+SELECT * FROM tool_rules;
+
+-- Add bypass rule
+INSERT INTO tool_rules (tool_name, should_route) VALUES ('simple_get', 0);
+
+-- Add semantic routing rule
+INSERT INTO tool_rules (tool_name, should_route) VALUES ('complex_analysis', 1);
+
+-- Update rule
+UPDATE tool_rules SET should_route = 1 WHERE tool_name = 'simple_get';
 ```
-Client → [mcp-transport] ────→ MCP Server
-         │  ↓ Interceptors    (stdio/HTTP+SSE)
-         │  • Logging
-         │  • Validation
-         │  • Rate Limiting
-         │  • Transform
-         │
-         └──→ BufferedIPC ──→ [mcp-ui TUI]
-              (Unix socket)   • 5 tabs (All/Messages/Errors/System/Hooks)
-                             • Fuzzy search
-                             • Multi-proxy monitoring
-                             • Interceptor statistics
-```
 
-**Transport Features:**
-- Intercepts STDIO communication with zero overhead
-- Multiple transport types (stdio ✅, HTTP+SSE ✅, HTTP streaming ⏳)
-- Pluggable interceptor framework for traffic modification
-- Sends logs + stats to UI via Unix socket IPC
-- Resilient buffered IPC (works offline, auto-reconnects)
-- Per-message interceptor overhead <1ms
+### GEPA Optimization
 
-**UI Features:**
-- Real-time log streaming with [MODIFIED] indicators
-- Multi-proxy support with transport indicators (📟 stdio, 🌐 HTTP+SSE)
-- 5 tabs: All, Messages, Errors, System, **Hooks** (interceptor stats)
-- Fuzzy search with keyword matching (press `/` to activate)
-- Proxy selection and detail views with word wrap
-- Statistics dashboard with performance metrics
-- Keyboard shortcuts: `1-5` (jump to tab), `h` (help), `w` (word wrap)
+Generated Expert Performance Analyzer improves tool prediction:
 
-## Project Structure
+- dspy-rs for structured prediction optimization
+- Feedback loop from actual tool usage
+- Learning based on success/failure rates
+- Automatic prompt refinement
 
-- `mcp-core/` - MCP protocol types, transports, and interceptor framework
-- `mcp-common/` - IPC communication and shared types
-- `mcp-transport/` - Transport layer proxy with interceptors (stdio, HTTP+SSE)
-- `mcp-ui/` - TUI monitoring application with fuzzy search and hooks tab
-- `mcp-cli/` - Unified CLI binary (`monitor`, `proxy` commands)
-- `mcp-llm/` - LLM integration (LiteRT-LM, DSPy-RS, GEPA, SQLite) - **not yet integrated**
-- `tests/` - End-to-end integration tests
+### Sandbox Runtime
 
-**Note:** `mcp-llm` contains a complete Stage 3 implementation but is not yet connected to the main proxy workflow.
+WASM-based sandboxing for untrusted code:
 
-## Development
+- wasmtime runtime with WASI support
+- Capability-based security with cap-std
+- Memory-safe execution
+- Python, JavaScript, and other WASM-compiled languages
+
+## Monitoring
+
+### WebSocket UI
+
+Access at ws://127.0.0.1:8081/ws
+
+Shows request/response pairs, routing decisions, LLM predictions, and latency statistics.
+
+### Terminal UI
 
 ```bash
-# Run all tests
-cargo test --workspace
-
-# Run specific crate tests
-cargo test -p mcp-core
-cargo test -p mcp-common
-cargo test -p mcp-transport
-cargo test -p mcp-ui
-
-# Run E2E tests
-cargo test --test e2e_tests
-
-# Check compilation
-cargo check --workspace
+cargo run --release --features tui
 ```
 
-## Testing
+## Performance
 
-**122 tests across:**
-- Protocol implementation (mcp-core: 93 tests)
-- IPC communication (mcp-common)
-- Transport layer (mcp-transport: 17 tests)
-- Interceptors (mcp-transport: 22 tests including integration)
-- TUI application (mcp-ui: 4 tests)
-- End-to-end scenarios (tests/: 3 tests)
+- Database lookup: 0.01-0.05ms
+- Fast path: 10-100ms (network to upstream)
+- Memory: ~10MB + SQLite cache
+- Concurrent requests: thousands
 
-```bash
-# Run all tests
-cargo test --workspace --lib
+## Resilience
 
-# Run with coverage
-cargo test --workspace --lib -- --nocapture
-```
-
-## Roadmap
-
-### Stage 1: Foundation ✅ COMPLETE
-- [x] Merge mcp-trace + mcp-probe-core
-- [x] Unified workspace with 122 tests
-- [x] Integrate HTTP+SSE transport into proxy
-- [x] Add fuzzy search to TUI
-
-### Stage 2: Traffic Modification ✅ COMPLETE
-- [x] Message interceptor framework (InterceptorManager)
-- [x] Built-in interceptors (logging, validation, rate limiting, transform)
-- [x] Request/response transformation (JSON path rules)
-- [x] Hooks tab in TUI with real-time stats
-
-### Stage 3: LLM Intelligence 🔨 IN PROGRESS
-- [x] Tool prediction with dspy-rs (implemented in mcp-llm)
-- [x] SQLite-backed routing decisions (implemented in mcp-llm)
-- [x] GEPA optimizer for continuous improvement (implemented in mcp-llm)
-- [ ] **Integrate mcp-llm into main workflow** ⏳ NEXT
-- [ ] Prediction accuracy metrics in TUI
-- [ ] Real-time routing decision visualization
-
-**Current Focus:** Integrating the completed mcp-llm crate into the proxy pipeline
-
-## Credits
-
-Built by combining:
-- **[mcp-trace](https://github.com/zabirauf/mcp-trace)** - Monitoring and TUI foundation
-- **[mcp-probe](https://github.com/conikeec/mcp-probe)** - Protocol and transport implementation
+- Database failure → automatic bypass mode
+- LLM service down → automatic bypass
+- Upstream failure → error returned to client
+- SQLite WAL mode → concurrent reads during writes
 
 ## License
 
-MIT (inherits from source projects)
+MIT
