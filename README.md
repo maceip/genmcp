@@ -17,7 +17,8 @@
 
 
 ## GenMCP
-<img height="266" alt="Screenshot 2025-11-02 at 5 55 34 AM" src="https://github.com/user-attachments/assets/24182435-d1e3-4500-a2e8-9f4703e07be7" />
+
+<img height="266" alt="image" src="https://github.com/user-attachments/assets/4b35adac-048e-4a42-8ad6-4e0afe84eb9a" />
 
 **genmcp** brings the fun back in for MCP: route, optimize, generate [securely]
 
